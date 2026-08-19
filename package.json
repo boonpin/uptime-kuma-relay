@@ -1,0 +1,11 @@
+{
+  "name": "uptime-kuma-relay",
+  "version": "1.0.0",
+  "description": "uptime kuma relay",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "wongbp@gmail.com",
+  "license": "ISC"
+}
