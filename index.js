@@ -4,18 +4,63 @@ const fs =
 const path =
   require("node:path");
 
-const LOCAL_KUMA =
-  process.env.LOCAL_KUMA || "http://uptime-kuma:3001";
-
-const STATUS_PAGE =
-  process.env.STATUS_PAGE || "cloud-sync";
-
-const INTERVAL =
-  Number(process.env.INTERVAL || 30000);
-
 const CONFIG_FILE =
-  process.env.CONFIG_FILE ||
   path.join(__dirname, "config.json");
+
+function timestamp() {
+  return new Date().toISOString().slice(0, 19);
+}
+
+function log(...args) {
+  console.log(
+    `[${timestamp()}]`,
+    ...args
+  );
+}
+
+function error(...args) {
+  console.error(
+    `[${timestamp()}]`,
+    ...args
+  );
+}
+
+function debug(...args) {
+  if (!IS_DEBUG) {
+    return;
+  }
+
+  log(
+    "DEBUG",
+    ...args
+  );
+}
+
+function maskPushUrl(value) {
+  try {
+    const url =
+      new URL(value);
+
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+
+    const pathParts =
+      url.pathname.split("/");
+
+    if (pathParts[pathParts.length - 1]) {
+      pathParts[pathParts.length - 1] = "***";
+    }
+
+    url.pathname =
+      pathParts.join("/");
+
+    return url.toString();
+  } catch {
+    return "[invalid URL]";
+  }
+}
 
 function readConfig() {
   if (!fs.existsSync(CONFIG_FILE)) {
@@ -35,16 +80,59 @@ function readConfig() {
 const config =
   readConfig();
 
+function getConfigValue(...keys) {
+  for (const key of keys) {
+    if (config[key] !== undefined) {
+      return config[key];
+    }
+  }
+
+  return undefined;
+}
+
+const LOCAL_KUMA =
+  getConfigValue("LOCAL_KUMA", "localKuma") ||
+  "http://uptime-kuma:3001";
+
+const STATUS_PAGE =
+  getConfigValue("STATUS_PAGE", "statusPage") ||
+  "cloud-sync";
+
+const INTERVAL =
+  Number(
+    getConfigValue("INTERVAL", "interval") ||
+    30000
+  );
+
+const ENVIRONMENT =
+  getConfigValue("ENVIRONMENT", "environment") ||
+  "production";
+
+const IS_DEBUG =
+  String(ENVIRONMENT).toLowerCase() === "debug";
+
 const MONITORS =
   config.MONITORS || config.monitors || {};
 
+debug(
+  `Loaded ${Object.keys(MONITORS).length} monitor mapping(s) from ${CONFIG_FILE}`
+);
+
 
 async function getJSON(url) {
+  debug(
+    `Fetching [${url}]`
+  );
+
   const res = await fetch(url);
 
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);
   }
+
+  debug(
+    `Fetched [${url}] with HTTP ${res.status}`
+  );
 
   return res.json();
 }
@@ -52,6 +140,10 @@ async function getJSON(url) {
 
 async function sync() {
   try {
+    debug(
+      `Starting relay sync for status page [${STATUS_PAGE}] from [${LOCAL_KUMA}]`
+    );
+
     const [page, heartbeats] = await Promise.all([
       getJSON(
         `${LOCAL_KUMA}/api/status-page/${STATUS_PAGE}`
@@ -66,14 +158,25 @@ async function sync() {
       page.publicGroupList
         .flatMap(group => group.monitorList);
 
+    debug(
+      `Found ${monitors.length} monitor(s) on status page [${STATUS_PAGE}]`
+    );
+
 
     for (const monitor of monitors) {
+      debug(
+        `Checking monitor [${monitor.name}]`
+      );
 
       const cloudPushUrl =
         MONITORS[monitor.name];
 
       if (!cloudPushUrl) {
-        console.log(
+        debug(
+          `No cloud Push URL configured for [${monitor.name}]`
+        );
+
+        log(
           `Skipping ${monitor.name}: no Cloud mapping`
         );
         continue;
@@ -85,7 +188,11 @@ async function sync() {
 
 
       if (!beats.length) {
-        console.log(
+        debug(
+          `No local heartbeat found for [${monitor.name}]`
+        );
+
+        log(
           `No heartbeat for ${monitor.name}`
         );
         continue;
@@ -149,6 +256,9 @@ async function sync() {
         );
       }
 
+      debug(
+        `Sending heartbeat [${monitor.name}] to [${maskPushUrl(cloudPushUrl)}] with status [${status}]`
+      );
 
       const res =
         await fetch(url, {
@@ -162,11 +272,18 @@ async function sync() {
         );
       }
 
+      debug(
+        `Cloud accepted heartbeat [${monitor.name}] with HTTP ${res.status}`
+      );
 
-      console.log(
+      log(
         `${monitor.name}: ${status}`
       );
     }
+
+    debug(
+      "Relay sync complete"
+    );
 
   } catch (err) {
 
@@ -180,10 +297,9 @@ async function sync() {
 
       Cloud Kuma will detect missing heartbeat.
     */
-
-    console.error(
+    error(
       "Sync failed:",
-      err.message
+      err
     );
   }
 }

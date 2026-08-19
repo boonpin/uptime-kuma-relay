@@ -33,6 +33,10 @@ Create a `config.json` file in the project root:
 
 ```json
 {
+  "LOCAL_KUMA": "http://uptime-kuma:3001",
+  "STATUS_PAGE": "cms",
+  "INTERVAL": 30000,
+  "ENVIRONMENT": "production",
   "MONITORS": {
     "Local Monitor Name": "https://cloud-kuma.example.com/api/push/YOUR_PUSH_TOKEN",
     "Another Monitor": "https://cloud-kuma.example.com/api/push/ANOTHER_PUSH_TOKEN"
@@ -45,14 +49,17 @@ status page. The values are the Push URLs from the cloud Uptime Kuma instance.
 
 `config.json` is gitignored because Push URLs contain secret tokens.
 
-## Environment Variables
+## Config Options
 
-| Variable | Default | Description |
+The app reads configuration only from `config.json`.
+
+| Key | Default | Description |
 | --- | --- | --- |
 | `LOCAL_KUMA` | `http://uptime-kuma:3001` | Base URL for the local Uptime Kuma instance. |
 | `STATUS_PAGE` | `cloud-sync` | Local status-page slug to poll. |
 | `INTERVAL` | `30000` | Poll interval in milliseconds. |
-| `CONFIG_FILE` | `./config.json` | Path to the monitor mapping file. |
+| `ENVIRONMENT` | `production` | Set to `debug` to show detailed relay steps. |
+| `MONITORS` | `{}` | Local monitor names mapped to cloud Uptime Kuma Push URLs. |
 
 ## Run With Docker Compose
 
@@ -67,20 +74,21 @@ The included compose file starts:
 - `uptime-kuma` on `http://localhost:3001`
 - `kuma-relay`, connected to Uptime Kuma over the Docker network
 
-The relay uses the `cloud-sync` status-page slug by default. If your status page
-uses a different slug, update `STATUS_PAGE` in `docker-compose.yml`.
+The relay settings are read from `config.json`. If your status page uses a
+different slug, update `STATUS_PAGE` in `config.json`.
 
 ## Run Locally
 
 ```sh
-LOCAL_KUMA=http://localhost:3001 \
-STATUS_PAGE=cloud-sync \
-INTERVAL=30000 \
-CONFIG_FILE=./config.json \
 node index.js
 ```
 
 No npm dependencies are required.
+
+Debug logs include relay steps such as local status-page fetches, monitor
+checks, and outbound heartbeat sends. Cloud Push URLs are masked in debug output
+so Push tokens are not written to logs. Set `"ENVIRONMENT": "debug"` in
+`config.json` to enable them.
 
 ## Status Mapping
 

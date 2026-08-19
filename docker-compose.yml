@@ -14,20 +14,16 @@ services:
   kuma-relay:
     build:
       context: .
-
+    image: wongbp/uptime-kuma-relay:latest
     container_name: kuma-relay
     restart: unless-stopped
-
-    environment:
-
-      LOCAL_KUMA: http://uptime-kuma:3001
-
-      STATUS_PAGE: cloud-sync
-
-      INTERVAL: 30000
-
-      CONFIG_FILE: /app/config.json
-
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    mem_limit: 200m
+    cpus: 1
     volumes:
       - ./config.json:/app/config.json:ro
 
